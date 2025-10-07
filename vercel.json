@@ -1,11 +1,6 @@
 {
   "version": 2,
-  "functions": {
-    "api/**/*.js": {
-      "runtime": "edge",
-      "maxDuration": 30
-    }
-  },
+
   "headers": [
     {
       "source": "/api/draw",
@@ -67,16 +62,11 @@
     "enabled": false
   },
 
-  "builds": [
-    {
-      "src": "public/index.html",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "api/**/*.js",
-      "use": "@vercel/edge-functions"
+  "functions": {
+    "api/**/*.js": {
+      "runtime": "edge"
     }
-  ],
+  },
   "redirects": [
     {
       "source": "/api",
