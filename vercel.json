@@ -63,9 +63,7 @@
   },
 
   "functions": {
-    "api/**/*.js": {
-      "runtime": "edge"
-    }
+    "api/**/*.js": {}
   },
   "redirects": [
     {
