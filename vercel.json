@@ -62,9 +62,7 @@
     "enabled": false
   },
 
-  "functions": {
-    "api/**/*.js": {}
-  },
+
   "redirects": [
     {
       "source": "/api",
