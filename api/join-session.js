@@ -65,20 +65,18 @@ export default async function handler(req, res) {
             }
         } else {
             // Create new session for demo purposes
-            const createSessionResponse = await fetch(`${req.headers.origin || 'http://localhost:3000'}/api/create-session`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (!createSessionResponse.ok) {
-                throw new Error('Failed to create session');
-            }
-
-            const createResult = await createSessionResponse.json();
-            sessionId = createResult.sessionId;
-            session = createResult.session;
+            sessionId = generateSessionId();
+            session = {
+                id: sessionId,
+                createdAt: new Date().toISOString(),
+                players: [],
+                drawnNumbers: [],
+                gameState: 'waiting',
+                countdown: 60,
+                maxPlayers: 50,
+                minPlayers: 2,
+                active: true
+            };
         }
 
         // Check if session is full

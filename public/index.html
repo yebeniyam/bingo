@@ -819,7 +819,7 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    balance = result.newBalance;
+                    balance = parseFloat(result.newBalance) || balance;
                     saveBalance();
                     updateBalanceDisplay();
                     hideDepositModal();
@@ -876,7 +876,7 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    balance = result.newBalance;
+                    balance = parseFloat(result.newBalance) || balance;
                     saveBalance();
                     updateBalanceDisplay();
                     hideWithdrawModal();
