@@ -143,6 +143,14 @@ export default async function handler(req, res) {
 }
 
 /**
+ * Generate a unique session ID
+ * @returns {string} Unique session ID
+ */
+function generateSessionId() {
+    return 'session_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+}
+
+/**
  * Generate a unique player ID
  * @returns {string} Unique player ID
  */
