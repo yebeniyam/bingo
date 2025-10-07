@@ -246,18 +246,23 @@ async function handleJoinSession(req, res) {
 
             // Create session if one doesn't exist
             let sessionId = 'demo_session'; // For demo purposes
-            let session = getSession(sessionId);
+            let session = await getSession(sessionId);
 
             if (!session) {
-                // Create new session
-                const createResult = await new Promise(resolve => {
-                    handleCreateSession({ method: 'POST' }, {
-                        writeHead: (code) => ({ end: (data) => resolve(JSON.parse(data)) }),
-                        end: (data) => resolve(JSON.parse(data))
-                    });
-                });
-                sessionId = createResult.sessionId;
-                session = createResult.session;
+                // Create new session directly
+                sessionId = generateSessionId();
+                session = {
+                    id: sessionId,
+                    createdAt: new Date().toISOString(),
+                    players: [],
+                    drawnNumbers: [],
+                    gameState: 'waiting',
+                    countdown: 60,
+                    maxPlayers: 50,
+                    minPlayers: 2,
+                    active: true
+                };
+                global.sessions.set(sessionId, session);
             }
 
             // Check if player already exists
@@ -287,7 +292,12 @@ async function handleJoinSession(req, res) {
             };
 
             session.players.push(player);
-            global.sessions.set(sessionId, session);
+
+            // Update session (await the async function)
+            await updateSession(sessionId, {
+                players: session.players,
+                gameState: session.players.length >= session.minPlayers ? 'countdown' : 'waiting'
+            });
 
             res.writeHead(200);
             res.end(JSON.stringify({
@@ -299,8 +309,9 @@ async function handleJoinSession(req, res) {
             }));
 
         } catch (error) {
+            console.error('Error joining session:', error);
             res.writeHead(500);
-            res.end(JSON.stringify({ error: 'Failed to join session' }));
+            res.end(JSON.stringify({ error: 'Failed to join session', details: error.message }));
         }
     });
 }
@@ -315,7 +326,7 @@ async function handleDrawSSE(req, res, query) {
         return;
     }
 
-    const session = getSession(sessionId);
+    const session = await getSession(sessionId);
     if (!session) {
         res.writeHead(404);
         res.end(JSON.stringify({ error: 'Session not found' }));
@@ -337,40 +348,49 @@ async function handleDrawSSE(req, res, query) {
     });
 
     // Send periodic updates
-    const interval = setInterval(() => {
-        const currentSession = getSession(sessionId);
-        if (!currentSession || !currentSession.active) {
-            sendSSE(res, 'gameEnd', { reason: 'Session ended' });
-            clearInterval(interval);
-            res.end();
-            return;
-        }
+    const interval = setInterval(async () => {
+        try {
+            const currentSession = await getSession(sessionId);
+            if (!currentSession || !currentSession.active) {
+                sendSSE(res, 'gameEnd', { reason: 'Session ended' });
+                clearInterval(interval);
+                res.end();
+                return;
+            }
 
-        if (currentSession.gameState === 'countdown') {
-            sendSSE(res, 'countdown', {
-                countdown: currentSession.countdown,
-                gameState: currentSession.gameState
-            });
-        }
-
-        if (currentSession.gameState === 'playing') {
-            // Generate random draw for demo
-            const columns = ['B', 'I', 'N', 'G', 'O'];
-            const randomColumn = columns[Math.floor(Math.random() * columns.length)];
-            const min = randomColumn === 'B' ? 1 : randomColumn === 'I' ? 16 : randomColumn === 'N' ? 31 : randomColumn === 'G' ? 46 : 61;
-            const max = min + 14;
-            const number = Math.floor(Math.random() * (max - min + 1)) + min;
-            const draw = `${randomColumn}${number}`;
-
-            if (!currentSession.drawnNumbers.includes(draw)) {
-                currentSession.drawnNumbers.push(draw);
-                global.sessions.set(sessionId, currentSession);
-
-                sendSSE(res, 'draw', {
-                    draw: draw,
-                    drawnNumbers: currentSession.drawnNumbers
+            if (currentSession.gameState === 'countdown') {
+                sendSSE(res, 'countdown', {
+                    countdown: currentSession.countdown,
+                    gameState: currentSession.gameState
                 });
             }
+
+            if (currentSession.gameState === 'playing') {
+                // Generate random draw for demo
+                const columns = ['B', 'I', 'N', 'G', 'O'];
+                const randomColumn = columns[Math.floor(Math.random() * columns.length)];
+                const min = randomColumn === 'B' ? 1 : randomColumn === 'I' ? 16 : randomColumn === 'N' ? 31 : randomColumn === 'G' ? 46 : 61;
+                const max = min + 14;
+                const number = Math.floor(Math.random() * (max - min + 1)) + min;
+                const draw = `${randomColumn}${number}`;
+
+                if (!currentSession.drawnNumbers.includes(draw)) {
+                    currentSession.drawnNumbers.push(draw);
+
+                    // Update session with new draw
+                    await updateSession(sessionId, {
+                        drawnNumbers: currentSession.drawnNumbers
+                    });
+
+                    sendSSE(res, 'draw', {
+                        draw: draw,
+                        drawnNumbers: currentSession.drawnNumbers
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('Error in draw interval:', error);
+            clearInterval(interval);
         }
     }, 2000); // Send updates every 2 seconds for demo
 
@@ -400,9 +420,9 @@ async function handleDeposit(req, res) {
             // Simulate processing delay
             await new Promise(resolve => setTimeout(resolve, 2000));
 
-            let currentBalance = getUserBalance(userId);
+            let currentBalance = await getUserBalance(userId);
             currentBalance += amount;
-            storeUserBalance(userId, currentBalance);
+            await storeUserBalance(userId, currentBalance);
 
             res.writeHead(200);
             res.end(JSON.stringify({
@@ -416,6 +436,7 @@ async function handleDeposit(req, res) {
             }));
 
         } catch (error) {
+            console.error('Deposit error:', error);
             res.writeHead(500);
             res.end(JSON.stringify({ error: 'Deposit failed' }));
         }
@@ -439,7 +460,7 @@ async function handleWithdraw(req, res) {
                 return;
             }
 
-            let currentBalance = getUserBalance(userId);
+            let currentBalance = await getUserBalance(userId);
 
             if (amount > currentBalance) {
                 res.writeHead(400);
@@ -455,7 +476,7 @@ async function handleWithdraw(req, res) {
             await new Promise(resolve => setTimeout(resolve, 3000));
 
             currentBalance -= amount;
-            storeUserBalance(userId, currentBalance);
+            await storeUserBalance(userId, currentBalance);
 
             res.writeHead(200);
             res.end(JSON.stringify({
@@ -469,6 +490,7 @@ async function handleWithdraw(req, res) {
             }));
 
         } catch (error) {
+            console.error('Withdrawal error:', error);
             res.writeHead(500);
             res.end(JSON.stringify({ error: 'Withdrawal failed' }));
         }
