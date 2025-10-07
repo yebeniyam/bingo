@@ -24,6 +24,9 @@ try {
 // In-memory storage for demo (in production, use Redis)
 global.sessions = global.sessions || new Map();
 global.userBalances = global.userBalances || new Map();
+global.availableCards = global.availableCards || new Map(); // Track available cards globally
+global.gameLoops = global.gameLoops || new Map(); // Track active game loops
+global.sseConnections = global.sseConnections || new Map(); // Track SSE connections
 
 // Helper function to generate session ID
 function generateSessionId() {
@@ -294,10 +297,16 @@ async function handleJoinSession(req, res) {
             session.players.push(player);
 
             // Update session (await the async function)
+            const newGameState = session.players.length >= session.minPlayers ? 'countdown' : 'waiting';
             await updateSession(sessionId, {
                 players: session.players,
-                gameState: session.players.length >= session.minPlayers ? 'countdown' : 'waiting'
+                gameState: newGameState
             });
+
+            // Start game loop if minimum players reached and not already started
+            if (newGameState === 'countdown' && !global.gameLoops.has(sessionId)) {
+                startGameLoop(sessionId);
+            }
 
             res.writeHead(200);
             res.end(JSON.stringify({
@@ -305,7 +314,7 @@ async function handleJoinSession(req, res) {
                 sessionId: sessionId,
                 playerId: playerId,
                 message: 'Joined session successfully',
-                gameState: session.gameState
+                gameState: newGameState
             }));
 
         } catch (error) {
@@ -495,6 +504,67 @@ async function handleWithdraw(req, res) {
             res.end(JSON.stringify({ error: 'Withdrawal failed' }));
         }
     });
+}
+
+// Start the game loop for a session
+async function startGameLoop(sessionId) {
+    console.log(`🎮 Starting game loop for session: ${sessionId}`);
+
+    // Store the game loop reference
+    const gameInterval = setInterval(async () => {
+        try {
+            const session = await getSession(sessionId);
+            if (!session || !session.active) {
+                console.log(`🛑 Stopping game loop for session: ${sessionId}`);
+                clearInterval(gameInterval);
+                global.gameLoops.delete(sessionId);
+                return;
+            }
+
+            if (session.gameState === 'countdown') {
+                const newCountdown = session.countdown - 1;
+
+                if (newCountdown <= 0) {
+                    // Start the game
+                    console.log(`🚀 Starting game for session: ${sessionId}`);
+                    await updateSession(sessionId, {
+                        gameState: 'playing',
+                        countdown: 0,
+                        gameStartedAt: new Date().toISOString()
+                    });
+
+                    // Send game started event to all connected clients
+                    sendSSEToAll(sessionId, 'gameStarted', {
+                        gameState: 'playing',
+                        message: 'Game started!'
+                    });
+                } else {
+                    await updateSession(sessionId, {
+                        countdown: newCountdown
+                    });
+
+                    // Send countdown update to all connected clients
+                    sendSSEToAll(sessionId, 'countdown', {
+                        countdown: newCountdown,
+                        gameState: 'countdown'
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('Error in game loop:', error);
+            clearInterval(gameInterval);
+            global.gameLoops.delete(sessionId);
+        }
+    }, 1000);
+
+    global.gameLoops.set(sessionId, gameInterval);
+}
+
+// Send SSE event to all connected clients for a session
+async function sendSSEToAll(sessionId, eventType, data) {
+    // In a production environment, you would track all SSE connections
+    // For this demo, we'll just log the event
+    console.log(`📡 Broadcasting ${eventType} to session ${sessionId}:`, data);
 }
 
 // Send Server-Sent Event
