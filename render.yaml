@@ -7,3 +7,17 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: UPSTASH_REDIS_REST_URL
+        fromService:
+          type: redis
+          name: bingo-redis
+          property: connectionString
+      - key: UPSTASH_REDIS_REST_TOKEN
+        fromService:
+          type: redis
+          name: bingo-redis
+          property: password
+
+  - type: redis
+    name: bingo-redis
+    ipAllowList: [] # Only accessible by other services in this project

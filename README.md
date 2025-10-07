@@ -112,12 +112,55 @@ A complete, production-ready Telegram Mini App for multiplayer Bingo gaming with
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `UPSTASH_REDIS_REST_URL` | Upstash Redis REST API URL | Yes |
-| `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST API token | Yes |
+| `UPSTASH_REDIS_REST_URL` | Upstash Redis REST API URL | Production |
+| `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST API token | Production |
 | `TELEBIRR_MERCHANT_ID` | Telebirr merchant identifier | Production |
 | `TELEBIRR_API_KEY` | Telebirr API key | Production |
 | `TELEBIRR_API_SECRET` | Telebirr API secret | Production |
 | `TELEBIRR_API_URL` | Telebirr API base URL | Production |
+
+### Redis Setup (Production)
+
+For production deployment with persistent data storage:
+
+1. **Create Upstash Redis Database:**
+   - Go to [upstash.com](https://upstash.com)
+   - Create a new Redis database
+   - Choose your preferred region
+   - Copy the REST API URL and REST API token
+
+2. **Configure in Render:**
+   - In your Render dashboard, go to your service settings
+   - Add environment variables:
+     - `UPSTASH_REDIS_REST_URL` = Your Upstash REST URL
+     - `UPSTASH_REDIS_REST_TOKEN` = Your Upstash REST token
+
+3. **Redis Data Structure:**
+   ```javascript
+   // Sessions: session:{sessionId}
+   {
+     "id": "session_abc123",
+     "players": [...],
+     "drawnNumbers": [...],
+     "gameState": "playing",
+     "active": true
+   }
+
+   // User balances: balance:{userId}
+   {
+     "balance": 25.50,
+     "updatedAt": "2025-01-07T12:00:00.000Z"
+   }
+
+   // Transactions: transaction:{transactionId}
+   {
+     "userId": "telegram_user_id",
+     "amount": 10.00,
+     "type": "deposit",
+     "status": "completed",
+     "createdAt": "2025-01-07T12:00:00.000Z"
+   }
+   ```
 
 ### Vercel Configuration
 

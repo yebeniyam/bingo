@@ -1,6 +1,6 @@
 /**
  * Node.js server for Telegram Bingo Mini App on Render
- * Handles static file serving and API routes
+ * Handles static file serving and API routes with Redis support
  */
 
 const http = require('http');
@@ -9,6 +9,17 @@ const path = require('path');
 const url = require('url');
 
 const PORT = process.env.PORT || 3000;
+
+// Import Redis utilities (if available)
+let redisAvailable = false;
+try {
+    // Dynamic import for Redis functions
+    const redisModule = require('./lib/redis.js');
+    redisAvailable = redisModule.isRedisAvailable();
+    console.log('🔴 Redis status:', redisAvailable ? 'Available' : 'Not available (using in-memory storage)');
+} catch (error) {
+    console.log('🔴 Redis module not found, using in-memory storage');
+}
 
 // In-memory storage for demo (in production, use Redis)
 global.sessions = global.sessions || new Map();
@@ -29,29 +40,80 @@ function generateTransactionId() {
     return 'tx_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
 }
 
-// Get user balance
-function getUserBalance(userId) {
+// Get user balance (Redis in production, in-memory for development)
+async function getUserBalance(userId) {
+    if (redisAvailable) {
+        try {
+            const redisModule = require('./lib/redis.js');
+            return await redisModule.getUserBalance(userId);
+        } catch (error) {
+            console.error('Redis error, falling back to in-memory:', error.message);
+        }
+    }
+
+    // Fallback to in-memory storage
     return global.userBalances.get(userId) || 10.00;
 }
 
-// Store user balance
-function storeUserBalance(userId, balance) {
+// Store user balance (Redis in production, in-memory for development)
+async function storeUserBalance(userId, balance) {
+    if (redisAvailable) {
+        try {
+            const redisModule = require('./lib/redis.js');
+            const success = await redisModule.storeUserBalance(userId, balance);
+            if (success) {
+                return true;
+            }
+        } catch (error) {
+            console.error('Redis error, falling back to in-memory:', error.message);
+        }
+    }
+
+    // Fallback to in-memory storage
     global.userBalances.set(userId, balance);
+    return true;
 }
 
-// Get session data
-function getSession(sessionId) {
+// Get session data (Redis in production, in-memory for development)
+async function getSession(sessionId) {
+    if (redisAvailable) {
+        try {
+            const redisModule = require('./lib/redis.js');
+            const session = await redisModule.getSession(sessionId);
+            if (session) {
+                return session;
+            }
+        } catch (error) {
+            console.error('Redis error, falling back to in-memory:', error.message);
+        }
+    }
+
+    // Fallback to in-memory storage
     return global.sessions.get(sessionId) || null;
 }
 
-// Update session data
-function updateSession(sessionId, updates) {
-    const session = getSession(sessionId);
+// Update session data (Redis in production, in-memory for development)
+async function updateSession(sessionId, updates) {
+    const session = await getSession(sessionId);
     if (!session) {
         throw new Error('Session not found');
     }
 
     const updatedSession = { ...session, ...updates };
+
+    if (redisAvailable) {
+        try {
+            const redisModule = require('./lib/redis.js');
+            const success = await redisModule.storeSession(sessionId, updatedSession);
+            if (success) {
+                return updatedSession;
+            }
+        } catch (error) {
+            console.error('Redis error, falling back to in-memory:', error.message);
+        }
+    }
+
+    // Fallback to in-memory storage
     global.sessions.set(sessionId, updatedSession);
     return updatedSession;
 }
