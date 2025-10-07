@@ -1,0 +1,234 @@
+Build a Production-Ready Telegram Bingo Mini App with Telebirr Integration and Vercel Deployment**
+
+---
+
+### 🎯 **Objective**  
+Generate a **complete, production-ready Telegram Mini App** for a multiplayer Bingo game that:  
+- Integrates with **Telegram WebApp SDK**  
+- Simulates **Telebirr deposit/withdrawal** (mocked for development, structured for real integration)  
+- Supports **real-time multiplayer** via a lightweight backend  
+- Handles **multiple simultaneous winners** fairly  
+- Is **deployed on Vercel** with proper configuration  
+- Follows **Telegram Mini App best practices**  
+
+You must output **fully functional, deployable code** with **zero placeholders**—every file, config, and instruction must be concrete and ready to copy-paste.
+
+---
+
+### 🧩 **Core Requirements**
+
+#### **1. Game Logic**
+- **20 pre-generated Bingo cards** with standard B(1–15), I(16–30), N(31–45 w/ FREE center), G(46–60), O(61–75)
+- Players select **1–3 cards** (cost: **1 ETB per card**)
+- Game starts **60 seconds after 5th player joins**; countdown resets if new players join during countdown
+- **Draw every 1 second** in format `B29`, `I12`, etc., **no duplicates**
+- **Win detection**: rows, columns, diagonals → **first win ends game**
+- **Multiple winners**: split prize pool equally (80% of total pot)
+
+#### **2. Wallet System (Telebirr)**
+- **Balance display** in top bar (e.g., `10.50 ETB`)
+- **Deposit button**:  
+  - In production: use `Telegram.WebApp.openInvoice()`  
+  - In development: **mock success after 2s**, update balance via `localStorage`  
+- **Withdraw button**:  
+  - Min withdrawal: **1.00 ETB**  
+  - Mock withdrawal with success message  
+- All amounts in **ETB (Ethiopian Birr)** with 2 decimals
+
+#### **3. Multiplayer Architecture**
+- **Backend required** (use lightweight solution: **Vercel Edge Functions + WebSocket via Upstash Redis** or **Server-Sent Events**)
+- Session-based rooms: all players see **same draw sequence**
+- Win validation must be **server-confirmed** (even if detected client-side)
+
+#### **4. UI/UX**
+- **Mobile-first**, Telegram-themed (use `Telegram.WebApp.colorScheme`)
+- Screens:  
+  - Card selection (with deposit button)  
+  - Gameplay (with balance, countdown, card pagination, drawn numbers)  
+  - Win modal (show prize, winner list, winning card)  
+- **Loading states** for deposits/withdrawals  
+- **Responsive pagination** for multiple cards
+
+---
+
+### 📁 **Required File Structure**
+
+```
+/  
+├── public/  
+│   ├── index.html                 # Main app  
+│   └── telegram-web-app.js        # Telegram SDK (optional: CDN is fine)  
+├── api/  
+│   ├── create-session.js          # POST: create new game session  
+│   ├── join-session.js            # POST: player joins with selected cards  
+│   ├── draw.js                    # GET: SSE stream of draws  
+│   └── wallet/  
+│       ├── deposit.js             # POST: mock Telebirr deposit  
+│       └── withdraw.js            # POST: mock withdrawal  
+├── lib/  
+│   ├── bingo.js                   # Card generation, win logic  
+│   └── telegram.js                # Telegram SDK helpers  
+├── vercel.json                    # Vercel config for SSE/WebSocket  
+├── package.json                   # Dependencies (only if needed)  
+└── README.md                      # Deployment instructions  
+```
+
+---
+
+### ⚙️ **Technical Specifications**
+
+#### **Frontend (public/index.html)**
+- **Vanilla JS only** (no frameworks)  
+- Use **Telegram.WebApp.ready()**, **expand()**, and **theme parameters**  
+- **Server-Sent Events (SSE)** for real-time draws (fallback to polling if needed)  
+- **localStorage** for dev balance; structure for real wallet later  
+- **Pagination**: show 1 card at a time with dot indicators for multiple cards  
+
+#### **Backend (Vercel Edge Functions)**
+- Use **Vercel Edge Functions** (`.js` files in `/api`)  
+- **Session storage**: Use **Upstash Redis** (free tier) for:  
+  - Active sessions  
+  - Player states  
+  - Draw sequences  
+- **SSE endpoint** (`/api/draw?sessionId=...`) for live draws  
+- **Idempotent operations** for wallet (prevent double deposits)  
+
+#### **Telebirr Mock Implementation**
+- **Deposit endpoint** (`POST /api/wallet/deposit`):  
+  ```js
+  // Request: { userId, amount }
+  // Response: { success: true, newBalance }
+  // In dev: add amount to balance in Redis/localStorage
+  ```
+- **Withdrawal endpoint** (`POST /api/wallet/withdraw`):  
+  ```js
+  // Validate balance ≥ amount ≥ 1.00
+  // In dev: subtract and return new balance
+  ```
+
+#### **Win Conflict Resolution**
+- On each draw, server checks **all players** for wins  
+- If ≥1 winner:  
+  - Stop draw stream  
+  - Calculate prize = `(totalPot * 0.8) / winnerCount`  
+  - Credit each winner’s balance  
+  - Broadcast win event to all clients  
+
+---
+
+### 🚀 **Vercel Deployment Instructions**
+
+#### **1. Environment Variables**
+- `UPSTASH_REDIS_REST_URL`  
+- `UPSTASH_REDIS_REST_TOKEN`  
+- `TELEGRAM_BOT_TOKEN` (for future invoice)  
+
+#### **2. vercel.json Configuration**
+```json
+{
+  "functions": {
+    "api/**/*.js": {
+      "runtime": "edge"
+    }
+  },
+  "headers": [
+    {
+      "source": "/api/draw",
+      "headers": [
+        { "key": "Content-Type", "value": "text/event-stream" },
+        { "key": "Cache-Control", "value": "no-cache" },
+        { "key": "Connection", "value": "keep-alive" }
+      ]
+    }
+  ]
+}
+```
+
+#### **3. Redis Schema (Upstash)**
+- **Session**: `session:{id}` → `{ players: [...], drawnNumbers: [...], active: true }`  
+- **Player**: `player:{userId}` → `{ balance: 10.5, sessionId: "..." }`  
+
+---
+
+### 🧪 **Development vs Production**
+
+| Feature | Development | Production |
+|--------|------------|-----------|
+| **Wallet** | localStorage + mock API | Telegram invoice + real Telebirr API |
+| **Multiplayer** | Simulated players | Real WebSocket/SSE sync |
+| **Balance** | Client-side | Server-validated |
+| **Draws** | Client-timed | Server-generated |
+
+> **Note**: Code must be **structured to swap mock → real** with minimal changes (e.g., config flags).
+
+---
+
+### ✅ **Deliverables**
+
+1. **Complete `index.html`** with all UI, JS logic, and Telegram SDK integration  
+2. **All API routes** (`/api/*.js`) as Vercel Edge Functions  
+3. **Utility libraries** (`/lib/bingo.js`, `/lib/telegram.js`)  
+4. **`vercel.json`** with SSE headers  
+5. **`README.md`** with:  
+   - Steps to deploy on Vercel  
+   - How to set up Upstash Redis  
+   - How to test deposit/withdrawal  
+   - How to simulate multiplayer  
+
+---
+
+### 🚫 **Strict Constraints**
+- **No external dependencies** in frontend (use CDN for Telegram SDK only)  
+- **No build step** (pure HTML/JS/CSS)  
+- **All code must run on Vercel Edge Runtime** (no Node.js APIs)  
+- **Telebirr integration must be mockable** but structured for real API  
+
+---
+
+### 💡 **Example Snippet (What I Expect)**
+
+**File: `api/draw.js`**
+```js
+import { createClient } from '@upstash/redis';
+
+export default async function handler(req, res) {
+  if (req.method !== 'GET') return res.status(405).end();
+  
+  const { sessionId } = req.query;
+  const redis = createClient({ url: process.env.UPSTASH_REDIS_REST_URL, token: process.env.UPSTASH_REDIS_REST_TOKEN });
+  
+  // Set SSE headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  
+  // Stream draws
+  const interval = setInterval(async () => {
+    const session = await redis.get(`session:${sessionId}`);
+    if (!session?.active) {
+      clearInterval(interval);
+      res.end();
+      return;
+    }
+    
+    // Get latest draw
+    const draws = session.drawnNumbers || [];
+    const lastDraw = draws[draws.length - 1];
+    
+    res.write(` ${JSON.stringify({ draw: lastDraw, winners: session.winners || [] })}\n\n`);
+    
+    if (session.winners?.length > 0) {
+      clearInterval(interval);
+      res.end();
+    }
+  }, 1000);
+  
+  // Clean up on disconnect
+  req.on('close', () => clearInterval(interval));
+}
+```
+
+---
+
+**Begin generating the complete, production-ready implementation.**  
+**Output every file in full. Do not summarize.**

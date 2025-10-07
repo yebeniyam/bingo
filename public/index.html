@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Bingo Game</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
+            padding: 20px;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: var(--tg-theme-secondary-bg-color, #f0f0f0);
+            border-radius: 10px;
+        }
+
+        .balance {
+            font-size: 18px;
+            font-weight: bold;
+            color: var(--tg-theme-accent-text-color, #007bff);
+        }
+
+        .wallet-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: opacity 0.2s;
+        }
+
+        .btn:hover {
+            opacity: 0.8;
+        }
+
+        .btn-primary {
+            background: var(--tg-theme-button-color, #007bff);
+            color: var(--tg-theme-button-text-color, #ffffff);
+        }
+
+        .btn-secondary {
+            background: var(--tg-theme-secondary-bg-color, #f0f0f0);
+            color: var(--tg-theme-text-color, #000000);
+        }
+
+        .card-selection {
+            margin-bottom: 30px;
+        }
+
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            border: 2px solid var(--tg-theme-secondary-bg-color, #e0e0e0);
+            border-radius: 10px;
+            padding: 10px;
+            background: var(--tg-theme-bg-color, #ffffff);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .card:hover {
+            border-color: var(--tg-theme-accent-text-color, #007bff);
+        }
+
+        .card.selected {
+            border-color: var(--tg-theme-button-color, #007bff);
+            background: rgba(0, 123, 255, 0.1);
+        }
+
+        .card-header {
+            text-align: center;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: var(--tg-theme-accent-text-color, #007bff);
+        }
+
+        .card-row {
+            display: flex;
+            margin-bottom: 2px;
+        }
+
+        .card-cell {
+            flex: 1;
+            height: 35px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--tg-theme-secondary-bg-color, #e0e0e0);
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .card-cell.free {
+            background: var(--tg-theme-button-color, #007bff);
+            color: var(--tg-theme-button-text-color, #ffffff);
+        }
+
+        .card-cell.marked {
+            background: var(--tg-theme-accent-text-color, #28a745);
+            color: white;
+        }
+
+        .game-info {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .countdown {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--tg-theme-accent-text-color, #dc3545);
+            margin-bottom: 10px;
+        }
+
+        .current-draw {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .drawn-numbers {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .drawn-number {
+            padding: 5px 10px;
+            background: var(--tg-theme-secondary-bg-color, #f0f0f0);
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .card-pagination {
+            display: flex;
+            justify-content: center;
+            gap: 5px;
+            margin-bottom: 20px;
+        }
+
+        .page-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--tg-theme-secondary-bg-color, #e0e0e0);
+        }
+
+        .page-dot.active {
+            background: var(--tg-theme-button-color, #007bff);
+        }
+
+        .game-controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: var(--tg-theme-hint-color, #666);
+        }
+
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--tg-theme-bg-color, #ffffff);
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            max-width: 90%;
+            margin: 20px;
+        }
+
+        .modal-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: var(--tg-theme-accent-text-color, #28a745);
+        }
+
+        .modal-text {
+            margin-bottom: 20px;
+            font-size: 16px;
+        }
+
+        .winner-cards {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .winner-card {
+            border: 2px solid var(--tg-theme-button-color, #007bff);
+            border-radius: 10px;
+            padding: 10px;
+            background: rgba(0, 123, 255, 0.1);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        @media (max-width: 400px) {
+            .card-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .card-cell {
+                height: 30px;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="balance">Balance: <span id="balance">10.00</span> ETB</div>
+        <div class="wallet-buttons">
+            <button class="btn btn-primary" onclick="showDepositModal()">Deposit</button>
+            <button class="btn btn-secondary" onclick="showWithdrawModal()">Withdraw</button>
+        </div>
+    </div>
+
+    <div id="cardSelection" class="card-selection">
+        <h2>Select Your Cards (1-3 cards, 1 ETB each)</h2>
+        <div class="card-grid" id="cardGrid">
+            <!-- Cards will be generated here -->
+        </div>
+        <div class="game-controls">
+            <button class="btn btn-primary" onclick="startGame()">Start Game</button>
+        </div>
+    </div>
+
+    <div id="gameArea" class="hidden">
+        <div class="game-info">
+            <div class="countdown" id="countdown">Waiting for players...</div>
+            <div class="current-draw" id="currentDraw">Next draw in: <span id="nextDrawTimer">60</span>s</div>
+        </div>
+
+        <div class="drawn-numbers" id="drawnNumbers">
+            <!-- Drawn numbers will appear here -->
+        </div>
+
+        <div class="card-pagination" id="cardPagination">
+            <!-- Pagination dots will be generated here -->
+        </div>
+
+        <div id="currentCard">
+            <!-- Current card will be displayed here -->
+        </div>
+
+        <div class="game-controls">
+            <button class="btn btn-secondary" onclick="previousCard()">Previous</button>
+            <button class="btn btn-secondary" onclick="nextCard()">Next</button>
+        </div>
+    </div>
+
+    <div class="loading" id="loading">Loading...</div>
+
+    <!-- Deposit Modal -->
+    <div class="modal" id="depositModal">
+        <div class="modal-content">
+            <h3 class="modal-title">Deposit ETB</h3>
+            <div class="modal-text">
+                <input type="number" id="depositAmount" placeholder="Amount (ETB)" min="1" step="0.01" style="padding: 10px; border: 1px solid #ddd; border-radius: 5px; width: 100%; margin-bottom: 15px;">
+                <div id="depositStatus"></div>
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <button class="btn btn-primary" onclick="processDeposit()">Deposit</button>
+                <button class="btn btn-secondary" onclick="hideDepositModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Withdraw Modal -->
+    <div class="modal" id="withdrawModal">
+        <div class="modal-content">
+            <h3 class="modal-title">Withdraw ETB</h3>
+            <div class="modal-text">
+                <input type="number" id="withdrawAmount" placeholder="Amount (ETB)" min="1" step="0.01" style="padding: 10px; border: 1px solid #ddd; border-radius: 5px; width: 100%; margin-bottom: 15px;">
+                <div id="withdrawStatus"></div>
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <button class="btn btn-primary" onclick="processWithdraw()">Withdraw</button>
+                <button class="btn btn-secondary" onclick="hideWithdrawModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Win Modal -->
+    <div class="modal" id="winModal">
+        <div class="modal-content">
+            <h3 class="modal-title">🎉 BINGO! 🎉</h3>
+            <div class="modal-text" id="winMessage">
+                <!-- Win message will be inserted here -->
+            </div>
+            <div class="winner-cards" id="winnerCards">
+                <!-- Winner cards will be displayed here -->
+            </div>
+            <div style="margin-top: 20px;">
+                <button class="btn btn-primary" onclick="hideWinModal()">Play Again</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Telegram WebApp SDK initialization
+        let tg = window.Telegram.WebApp;
+        let userId = null;
+        let sessionId = null;
+        let currentCards = [];
+        let selectedCards = [];
+        let currentCardIndex = 0;
+        let balance = 10.00; // Starting balance for development
+        let eventSource = null;
+        let gameState = 'waiting'; // waiting, countdown, playing, finished
+
+        // Initialize Telegram WebApp
+        tg.ready();
+        tg.expand();
+
+        // Get user ID from Telegram
+        if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+            userId = tg.initDataUnsafe.user.id.toString();
+        } else {
+            // Development fallback
+            userId = 'dev_user_' + Math.random().toString(36).substr(2, 9);
+        }
+
+        // Load balance from localStorage (development)
+        loadBalance();
+
+        // Generate and display bingo cards
+        generateCards();
+
+        function generateCards() {
+            currentCards = generateBingoCards(20);
+            displayCards();
+        }
+
+        function generateBingoCards(count) {
+            const cards = [];
+            for (let i = 0; i < count; i++) {
+                cards.push(generateBingoCard());
+            }
+            return cards;
+        }
+
+        function generateBingoCard() {
+            const card = {
+                B: [],
+                I: [],
+                N: [],
+                G: [],
+                O: []
+            };
+
+            // Generate numbers for each column
+            card.B = shuffleArray(generateRange(1, 15)).slice(0, 5);
+            card.I = shuffleArray(generateRange(16, 30)).slice(0, 5);
+            card.N = shuffleArray(generateRange(31, 45)).slice(0, 5);
+            card.G = shuffleArray(generateRange(46, 60)).slice(0, 5);
+            card.O = shuffleArray(generateRange(61, 75)).slice(0, 5);
+
+            // Set center cell as FREE
+            card.N[2] = 'FREE';
+
+            return card;
+        }
+
+        function generateRange(start, end) {
+            const range = [];
+            for (let i = start; i <= end; i++) {
+                range.push(i);
+            }
+            return range;
+        }
+
+        function shuffleArray(array) {
+            const shuffled = [...array];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            return shuffled;
+        }
+
+        function displayCards() {
+            const cardGrid = document.getElementById('cardGrid');
+            cardGrid.innerHTML = '';
+
+            currentCards.forEach((card, index) => {
+                const cardElement = createCardElement(card, index);
+                cardGrid.appendChild(cardElement);
+            });
+        }
+
+        function createCardElement(card, index) {
+            const cardDiv = document.createElement('div');
+            cardDiv.className = 'card';
+            cardDiv.onclick = () => toggleCardSelection(index);
+
+            const header = document.createElement('div');
+            header.className = 'card-header';
+            header.textContent = `Card ${index + 1}`;
+            cardDiv.appendChild(header);
+
+            // Create B I N G O header
+            const bingoHeader = document.createElement('div');
+            bingoHeader.style.display = 'flex';
+            bingoHeader.style.marginBottom = '5px';
+            'BINGO'.split('').forEach(letter => {
+                const letterDiv = document.createElement('div');
+                letterDiv.style.flex = '1';
+                letterDiv.style.textAlign = 'center';
+                letterDiv.style.fontWeight = 'bold';
+                letterDiv.style.fontSize = '12px';
+                letterDiv.textContent = letter;
+                bingoHeader.appendChild(letterDiv);
+            });
+            cardDiv.appendChild(bingoHeader);
+
+            // Create card rows
+            for (let row = 0; row < 5; row++) {
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'card-row';
+
+                ['B', 'I', 'N', 'G', 'O'].forEach(col => {
+                    const cellDiv = document.createElement('div');
+                    cellDiv.className = 'card-cell';
+                    const value = card[col][row];
+
+                    if (value === 'FREE') {
+                        cellDiv.classList.add('free');
+                        cellDiv.textContent = 'FREE';
+                    } else {
+                        cellDiv.textContent = value;
+                        cellDiv.dataset.number = value;
+                        cellDiv.dataset.letter = col;
+                    }
+
+                    rowDiv.appendChild(cellDiv);
+                });
+
+                cardDiv.appendChild(rowDiv);
+            }
+
+            return cardDiv;
+        }
+
+        function toggleCardSelection(cardIndex) {
+            const cardElement = document.querySelectorAll('.card')[cardIndex];
+
+            if (selectedCards.includes(cardIndex)) {
+                // Deselect card
+                selectedCards = selectedCards.filter(idx => idx !== cardIndex);
+                cardElement.classList.remove('selected');
+            } else {
+                // Select card (max 3)
+                if (selectedCards.length < 3) {
+                    selectedCards.push(cardIndex);
+                    cardElement.classList.add('selected');
+                }
+            }
+
+            updateStartButton();
+        }
+
+        function updateStartButton() {
+            const startButton = document.querySelector('#cardSelection .btn');
+            if (selectedCards.length > 0) {
+                startButton.textContent = `Start Game (${selectedCards.length} card${selectedCards.length > 1 ? 's' : ''} - ${selectedCards.length} ETB)`;
+                startButton.disabled = false;
+            } else {
+                startButton.textContent = 'Select cards to start';
+                startButton.disabled = true;
+            }
+        }
+
+        async function startGame() {
+            if (selectedCards.length === 0) return;
+
+            // Check balance
+            const cost = selectedCards.length;
+            if (balance < cost) {
+                alert('Insufficient balance. Please deposit more ETB.');
+                return;
+            }
+
+            showLoading('Creating game session...');
+
+            try {
+                // Create or join session
+                const response = await fetch('/api/join-session', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        userId: userId,
+                        cardIndices: selectedCards,
+                        cardCost: cost
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    sessionId = result.sessionId;
+                    balance -= cost; // Deduct card cost
+                    saveBalance();
+
+                    document.getElementById('cardSelection').classList.add('hidden');
+                    document.getElementById('gameArea').classList.remove('hidden');
+
+                    // Display selected cards in game area
+                    displayGameCards();
+
+                    // Start listening for draws
+                    startListeningForDraws();
+
+                    updateBalanceDisplay();
+                } else {
+                    alert('Failed to join game: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error starting game:', error);
+                alert('Error starting game. Please try again.');
+            }
+
+            hideLoading();
+        }
+
+        function displayGameCards() {
+            const paginationDiv = document.getElementById('cardPagination');
+            paginationDiv.innerHTML = '';
+
+            selectedCards.forEach((cardIndex, index) => {
+                const dot = document.createElement('div');
+                dot.className = `page-dot ${index === 0 ? 'active' : ''}`;
+                dot.onclick = () => showCard(index);
+                paginationDiv.appendChild(dot);
+            });
+
+            showCard(0);
+        }
+
+        function showCard(index) {
+            currentCardIndex = index;
+            const card = currentCards[selectedCards[index]];
+            const currentCardDiv = document.getElementById('currentCard');
+
+            // Update pagination dots
+            document.querySelectorAll('.page-dot').forEach((dot, i) => {
+                dot.classList.toggle('active', i === index);
+            });
+
+            currentCardDiv.innerHTML = '';
+            const cardElement = createCardElement(card, selectedCards[index]);
+            currentCardDiv.appendChild(cardElement);
+        }
+
+        function nextCard() {
+            if (currentCardIndex < selectedCards.length - 1) {
+                showCard(currentCardIndex + 1);
+            }
+        }
+
+        function previousCard() {
+            if (currentCardIndex > 0) {
+                showCard(currentCardIndex - 1);
+            }
+        }
+
+        function startListeningForDraws() {
+            if (eventSource) {
+                eventSource.close();
+            }
+
+            eventSource = new EventSource(`/api/draw?sessionId=${sessionId}`);
+
+            eventSource.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+
+                if (data.draw) {
+                    handleNewDraw(data.draw);
+                }
+
+                if (data.winners && data.winners.length > 0) {
+                    handleGameEnd(data.winners, data.prize);
+                }
+
+                if (data.countdown !== undefined) {
+                    updateCountdown(data.countdown);
+                }
+
+                if (data.gameState) {
+                    gameState = data.gameState;
+                }
+            };
+
+            eventSource.onerror = function(error) {
+                console.error('EventSource error:', error);
+            };
+        }
+
+        function handleNewDraw(draw) {
+            // Add to drawn numbers display
+            const drawnNumbersDiv = document.getElementById('drawnNumbers');
+            const numberDiv = document.createElement('div');
+            numberDiv.className = 'drawn-number';
+            numberDiv.textContent = draw;
+            drawnNumbersDiv.appendChild(numberDiv);
+
+            // Mark number on all cards
+            markNumberOnCards(draw);
+
+            // Check for wins
+            checkForWin();
+        }
+
+        function markNumberOnCards(draw) {
+            const letter = draw.charAt(0);
+            const number = parseInt(draw.substring(1));
+
+            document.querySelectorAll('.card-cell').forEach(cell => {
+                if (cell.dataset.letter === letter && parseInt(cell.dataset.number) === number) {
+                    cell.classList.add('marked');
+                }
+            });
+        }
+
+        function checkForWin() {
+            // Check current card for win
+            const currentCardElement = document.querySelector('#currentCard .card');
+            if (checkCardForWin(currentCardElement)) {
+                // Notify server of potential win
+                fetch('/api/check-win', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        sessionId: sessionId,
+                        userId: userId,
+                        cardIndex: currentCardIndex
+                    })
+                });
+            }
+        }
+
+        function checkCardForWin(cardElement) {
+            const cells = cardElement.querySelectorAll('.card-cell');
+
+            // Check rows
+            for (let row = 0; row < 5; row++) {
+                let rowWin = true;
+                for (let col = 0; col < 5; col++) {
+                    const cell = cells[row * 5 + col];
+                    if (!cell.classList.contains('marked') && !cell.classList.contains('free')) {
+                        rowWin = false;
+                        break;
+                    }
+                }
+                if (rowWin) return true;
+            }
+
+            // Check columns
+            for (let col = 0; col < 5; col++) {
+                let colWin = true;
+                for (let row = 0; row < 5; row++) {
+                    const cell = cells[row * 5 + col];
+                    if (!cell.classList.contains('marked') && !cell.classList.contains('free')) {
+                        colWin = false;
+                        break;
+                    }
+                }
+                if (colWin) return true;
+            }
+
+            // Check diagonals
+            let diagonal1Win = true;
+            let diagonal2Win = true;
+            for (let i = 0; i < 5; i++) {
+                const cell1 = cells[i * 5 + i];
+                const cell2 = cells[i * 5 + (4 - i)];
+
+                if (!cell1.classList.contains('marked') && !cell1.classList.contains('free')) {
+                    diagonal1Win = false;
+                }
+                if (!cell2.classList.contains('marked') && !cell2.classList.contains('free')) {
+                    diagonal2Win = false;
+                }
+            }
+
+            return diagonal1Win || diagonal2Win;
+        }
+
+        function handleGameEnd(winners, prize) {
+            gameState = 'finished';
+
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+
+            // Check if current user is a winner
+            const isWinner = winners.some(w => w.userId === userId);
+
+            let message = '';
+            if (isWinner) {
+                balance += prize;
+                saveBalance();
+                message = `Congratulations! You won ${prize.toFixed(2)} ETB!`;
+            } else {
+                message = `Game Over! Winners: ${winners.map(w => `Player ${w.userId.slice(-4)}`).join(', ')}`;
+            }
+
+            showWinModal(message, winners, prize);
+        }
+
+        function updateCountdown(seconds) {
+            const countdownDiv = document.getElementById('countdown');
+            const nextDrawTimer = document.getElementById('nextDrawTimer');
+
+            if (seconds > 0) {
+                countdownDiv.textContent = `Game starts in: ${seconds}s`;
+                if (nextDrawTimer) nextDrawTimer.textContent = seconds;
+            } else {
+                countdownDiv.textContent = 'Game in progress...';
+                if (nextDrawTimer) nextDrawTimer.textContent = 'LIVE';
+            }
+        }
+
+        function updateBalanceDisplay() {
+            document.getElementById('balance').textContent = balance.toFixed(2);
+        }
+
+        // Wallet functions
+        function showDepositModal() {
+            document.getElementById('depositModal').classList.add('show');
+        }
+
+        function hideDepositModal() {
+            document.getElementById('depositModal').classList.remove('show');
+            document.getElementById('depositAmount').value = '';
+            document.getElementById('depositStatus').textContent = '';
+        }
+
+        async function processDeposit() {
+            const amount = parseFloat(document.getElementById('depositAmount').value);
+            if (!amount || amount <= 0) {
+                document.getElementById('depositStatus').textContent = 'Please enter a valid amount.';
+                return;
+            }
+
+            document.getElementById('depositStatus').textContent = 'Processing deposit...';
+
+            try {
+                const response = await fetch('/api/wallet/deposit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        userId: userId,
+                        amount: amount
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    balance = result.newBalance;
+                    saveBalance();
+                    updateBalanceDisplay();
+                    hideDepositModal();
+                } else {
+                    document.getElementById('depositStatus').textContent = result.error || 'Deposit failed.';
+                }
+            } catch (error) {
+                console.error('Deposit error:', error);
+                document.getElementById('depositStatus').textContent = 'Deposit failed. Please try again.';
+            }
+        }
+
+        function showWithdrawModal() {
+            document.getElementById('withdrawModal').classList.add('show');
+        }
+
+        function hideWithdrawModal() {
+            document.getElementById('withdrawModal').classList.remove('show');
+            document.getElementById('withdrawAmount').value = '';
+            document.getElementById('withdrawStatus').textContent = '';
+        }
+
+        async function processWithdraw() {
+            const amount = parseFloat(document.getElementById('withdrawAmount').value);
+            if (!amount || amount <= 0) {
+                document.getElementById('withdrawStatus').textContent = 'Please enter a valid amount.';
+                return;
+            }
+
+            if (amount < 1.00) {
+                document.getElementById('withdrawStatus').textContent = 'Minimum withdrawal is 1.00 ETB.';
+                return;
+            }
+
+            if (amount > balance) {
+                document.getElementById('withdrawStatus').textContent = 'Insufficient balance.';
+                return;
+            }
+
+            document.getElementById('withdrawStatus').textContent = 'Processing withdrawal...';
+
+            try {
+                const response = await fetch('/api/wallet/withdraw', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        userId: userId,
+                        amount: amount
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    balance = result.newBalance;
+                    saveBalance();
+                    updateBalanceDisplay();
+                    hideWithdrawModal();
+                } else {
+                    document.getElementById('withdrawStatus').textContent = result.error || 'Withdrawal failed.';
+                }
+            } catch (error) {
+                console.error('Withdrawal error:', error);
+                document.getElementById('withdrawStatus').textContent = 'Withdrawal failed. Please try again.';
+            }
+        }
+
+        function showWinModal(message, winners, prize) {
+            const modal = document.getElementById('winModal');
+            document.getElementById('winMessage').innerHTML = `
+                <p>${message}</p>
+                <p><strong>Prize per winner:</strong> ${prize ? prize.toFixed(2) : '0.00'} ETB</p>
+            `;
+
+            const winnerCardsDiv = document.getElementById('winnerCards');
+            winnerCardsDiv.innerHTML = '';
+
+            winners.forEach(winner => {
+                const winnerDiv = document.createElement('div');
+                winnerDiv.className = 'winner-card';
+                winnerDiv.innerHTML = `<strong>Winner:</strong> Player ${winner.userId.slice(-4)}`;
+                winnerCardsDiv.appendChild(winnerDiv);
+            });
+
+            modal.classList.add('show');
+        }
+
+        function hideWinModal() {
+            document.getElementById('winModal').classList.remove('show');
+
+            // Reset game state
+            selectedCards = [];
+            currentCardIndex = 0;
+            gameState = 'waiting';
+
+            // Clear drawn numbers
+            document.getElementById('drawnNumbers').innerHTML = '';
+
+            // Show card selection
+            document.getElementById('gameArea').classList.add('hidden');
+            document.getElementById('cardSelection').classList.remove('hidden');
+
+            // Regenerate cards
+            generateCards();
+        }
+
+        function showLoading(message) {
+            document.getElementById('loading').textContent = message;
+            document.getElementById('loading').classList.remove('hidden');
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').classList.add('hidden');
+        }
+
+        // Balance management (localStorage for development)
+        function saveBalance() {
+            localStorage.setItem(`balance_${userId}`, balance.toString());
+        }
+
+        function loadBalance() {
+            const savedBalance = localStorage.getItem(`balance_${userId}`);
+            if (savedBalance) {
+                balance = parseFloat(savedBalance);
+            }
+            updateBalanceDisplay();
+        }
+
+        // Initialize start button state
+        updateStartButton();
+
+        // Handle Telegram back button
+        tg.BackButton.onClick(() => {
+            if (!document.getElementById('cardSelection').classList.contains('hidden')) {
+                tg.close();
+            } else {
+                hideWinModal();
+            }
+        });
+
+        // Show back button when game starts
+        tg.BackButton.show();
+    </script>
+</body>
+</html>
