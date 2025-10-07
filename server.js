@@ -27,6 +27,7 @@ global.userBalances = global.userBalances || new Map();
 global.availableCards = global.availableCards || new Map(); // Track available cards globally
 global.gameLoops = global.gameLoops || new Map(); // Track active game loops
 global.sseConnections = global.sseConnections || new Map(); // Track SSE connections
+global.cardReservations = global.cardReservations || new Map(); // Track card reservations by players
 
 // Helper function to generate session ID
 function generateSessionId() {
@@ -182,6 +183,56 @@ function serveStaticFile(filePath, res) {
     });
 }
 
+// Initialize card pool
+function initializeCardPool() {
+    // Generate 20 unique Bingo cards
+    const cards = [];
+    for (let i = 0; i < 20; i++) {
+        cards.push(generateBingoCard());
+    }
+    return cards;
+}
+
+// Generate a Bingo card
+function generateBingoCard() {
+    const card = {
+        B: [],
+        I: [],
+        N: [],
+        G: [],
+        O: []
+    };
+
+    // Generate numbers for each column
+    card.B = shuffleArray(generateRange(1, 15)).slice(0, 5);
+    card.I = shuffleArray(generateRange(16, 30)).slice(0, 5);
+    card.N = shuffleArray(generateRange(31, 45)).slice(0, 5);
+    card.G = shuffleArray(generateRange(46, 60)).slice(0, 5);
+    card.O = shuffleArray(generateRange(61, 75)).slice(0, 5);
+
+    // Set center cell as FREE
+    card.N[2] = 'FREE';
+
+    return card;
+}
+
+function generateRange(start, end) {
+    const range = [];
+    for (let i = start; i <= end; i++) {
+        range.push(i);
+    }
+    return range;
+}
+
+function shuffleArray(array) {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+}
+
 // Handle API routes
 async function handleAPI(req, res, pathname, query) {
     const method = req.method;
@@ -189,7 +240,9 @@ async function handleAPI(req, res, pathname, query) {
     // Set JSON content type for API responses
     res.setHeader('Content-Type', 'application/json');
 
-    if (pathname === '/api/create-session' && method === 'POST') {
+    if (pathname === '/api/cards' && method === 'GET') {
+        await handleGetAvailableCards(req, res);
+    } else if (pathname === '/api/create-session' && method === 'POST') {
         await handleCreateSession(req, res);
     } else if (pathname === '/api/join-session' && method === 'POST') {
         await handleJoinSession(req, res);
@@ -202,6 +255,52 @@ async function handleAPI(req, res, pathname, query) {
     } else {
         res.writeHead(404);
         res.end(JSON.stringify({ error: 'API endpoint not found' }));
+    }
+}
+
+// Handle getting available cards
+async function handleGetAvailableCards(req, res) {
+    try {
+        // Initialize card pool if not exists
+        if (!global.availableCards.has('cardPool')) {
+            const cardPool = initializeCardPool();
+            global.availableCards.set('cardPool', cardPool);
+        }
+
+        const cardPool = global.availableCards.get('cardPool');
+        const availableCards = [];
+        const reservedCards = [];
+
+        // Check which cards are available
+        for (let i = 0; i < cardPool.length; i++) {
+            if (global.cardReservations.has(i)) {
+                reservedCards.push({
+                    index: i,
+                    reservedBy: global.cardReservations.get(i),
+                    card: null // Don't send card data for reserved cards
+                });
+            } else {
+                availableCards.push({
+                    index: i,
+                    card: cardPool[i]
+                });
+            }
+        }
+
+        res.writeHead(200);
+        res.end(JSON.stringify({
+            success: true,
+            availableCards: availableCards,
+            reservedCards: reservedCards,
+            totalCards: cardPool.length,
+            availableCount: availableCards.length,
+            reservedCount: reservedCards.length
+        }));
+
+    } catch (error) {
+        console.error('Error getting available cards:', error);
+        res.writeHead(500);
+        res.end(JSON.stringify({ error: 'Failed to get available cards' }));
     }
 }
 
@@ -247,9 +346,26 @@ async function handleJoinSession(req, res) {
                 return;
             }
 
+            // Validate card indices and check availability
+            for (const cardIndex of cardIndices) {
+                if (global.cardReservations.has(cardIndex)) {
+                    res.writeHead(400);
+                    res.end(JSON.stringify({
+                        error: `Card ${cardIndex} is already taken by another player`
+                    }));
+                    return;
+                }
+            }
+
+            // Reserve cards for this player
+            cardIndices.forEach(cardIndex => {
+                global.cardReservations.set(cardIndex, userId);
+            });
+
             // Create session if one doesn't exist
             let sessionId = 'demo_session'; // For demo purposes
             let session = await getSession(sessionId);
+            let isNewSession = false;
 
             if (!session) {
                 // Create new session directly
@@ -266,6 +382,7 @@ async function handleJoinSession(req, res) {
                     active: true
                 };
                 global.sessions.set(sessionId, session);
+                isNewSession = true;
             }
 
             // Check if player already exists
@@ -305,6 +422,7 @@ async function handleJoinSession(req, res) {
 
             // Start game loop if minimum players reached and not already started
             if (newGameState === 'countdown' && !global.gameLoops.has(sessionId)) {
+                console.log(`🎮 Starting countdown for session ${sessionId} with ${session.players.length} players`);
                 startGameLoop(sessionId);
             }
 
@@ -314,7 +432,8 @@ async function handleJoinSession(req, res) {
                 sessionId: sessionId,
                 playerId: playerId,
                 message: 'Joined session successfully',
-                gameState: newGameState
+                gameState: newGameState,
+                playerCount: session.players.length
             }));
 
         } catch (error) {

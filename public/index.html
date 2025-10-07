@@ -378,8 +378,28 @@
         // Load balance from localStorage (development)
         loadBalance();
 
-        // Generate and display bingo cards
-        generateCards();
+        // Load available cards from server
+        loadAvailableCards();
+
+        async function loadAvailableCards() {
+            try {
+                const response = await fetch('/api/cards');
+                const result = await response.json();
+
+                if (result.success) {
+                    currentCards = result.availableCards.map(card => card.card);
+                    displayCards();
+                } else {
+                    console.error('Failed to load cards:', result.error);
+                    // Fallback to local generation
+                    generateCards();
+                }
+            } catch (error) {
+                console.error('Error loading cards:', error);
+                // Fallback to local generation
+                generateCards();
+            }
+        }
 
         function generateCards() {
             currentCards = generateBingoCards(20);
