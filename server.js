@@ -388,6 +388,9 @@ async function handleJoinSession(req, res) {
                 console.log(`📋 Found existing session: ${sessionId} with ${session.players.length} players, state: ${session.gameState}`);
             }
 
+            console.log(`👤 Player ${userId.slice(-4)} joining session ${sessionId}`);
+            console.log(`📊 Before join - Players: ${session.players.length}, State: ${session.gameState}`);
+
             // Check if player already exists
             const existingPlayer = session.players.find(p => p.userId === userId);
             if (existingPlayer) {
