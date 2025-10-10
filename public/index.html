@@ -266,16 +266,33 @@
         <div class="wallet-buttons">
             <button class="btn btn-primary" onclick="showDepositModal()">Deposit</button>
             <button class="btn btn-secondary" onclick="showWithdrawModal()">Withdraw</button>
+            <button class="btn btn-secondary" onclick="showAdminPanel()" style="margin-left: 10px;">👑 Admin</button>
+        </div>
+    </div>
+
+    <!-- Admin Panel (initially hidden) -->
+    <div id="adminPanel" class="hidden">
+        <h3>🎮 Admin Panel</h3>
+        <div style="margin-bottom: 20px;">
+            <button class="btn btn-secondary" onclick="loadSessions()">Load Sessions</button>
+            <button class="btn btn-secondary" onclick="loadPlayers()">Load Players</button>
+            <button class="btn btn-secondary" onclick="refreshCards()">Refresh Cards</button>
+        </div>
+        <div id="adminContent">
+            <!-- Admin content will be displayed here -->
         </div>
     </div>
 
     <div id="cardSelection" class="card-selection">
-        <h2>Select Your Cards (1-3 cards, 1 ETB each)</h2>
+        <h2>🎴 Select Your Cards (1-3 cards, 1 ETB each)</h2>
+        <div style="margin-bottom: 15px; text-align: center;">
+            <button class="btn btn-secondary" onclick="loadAvailableCards()">🔄 Refresh Available Cards</button>
+        </div>
         <div class="card-grid" id="cardGrid">
             <!-- Cards will be generated here -->
         </div>
         <div class="game-controls">
-            <button class="btn btn-primary" onclick="startGame()">Start Game</button>
+            <button class="btn btn-primary" onclick="startGame()">🎮 Start Game</button>
         </div>
     </div>
 
@@ -1002,6 +1019,144 @@
 
         // Show back button when game starts
         tg.BackButton.show();
+
+        // Admin functions
+        function showAdminPanel() {
+            const adminPanel = document.getElementById('adminPanel');
+            const cardSelection = document.getElementById('cardSelection');
+            const gameArea = document.getElementById('gameArea');
+
+            if (adminPanel.classList.contains('hidden')) {
+                adminPanel.classList.remove('hidden');
+                cardSelection.classList.add('hidden');
+                gameArea.classList.add('hidden');
+            } else {
+                adminPanel.classList.add('hidden');
+                cardSelection.classList.remove('hidden');
+            }
+        }
+
+        async function loadSessions() {
+            try {
+                const response = await fetch('/api/admin/sessions');
+                const result = await response.json();
+
+                if (result.success) {
+                    const adminContent = document.getElementById('adminContent');
+                    adminContent.innerHTML = `
+                        <h4>📊 Server Status</h4>
+                        <p><strong>Redis Available:</strong> ${result.serverInfo.redisAvailable}</p>
+                        <p><strong>Active Game Loops:</strong> ${result.serverInfo.totalGameLoops}</p>
+                        <p><strong>Active Connections:</strong> ${result.serverInfo.totalConnections}</p>
+
+                        <h4>🎮 Active Sessions (${result.sessions.length})</h4>
+                        ${result.sessions.map(session => `
+                            <div style="border: 1px solid #ddd; padding: 10px; margin: 5px 0; border-radius: 5px;">
+                                <p><strong>Session:</strong> ${session.id.slice(-8)}</p>
+                                <p><strong>Players:</strong> ${session.playerCount}</p>
+                                <p><strong>State:</strong> ${session.gameState}</p>
+                                <p><strong>Countdown:</strong> ${session.countdown}s</p>
+                                <p><strong>Created:</strong> ${new Date(session.createdAt).toLocaleTimeString()}</p>
+                            </div>
+                        `).join('')}
+
+                        <h4>🎫 Card Reservations (${result.cardReservations.length})</h4>
+                        ${result.cardReservations.map(reservation => `
+                            <div style="border: 1px solid #ddd; padding: 5px; margin: 2px 0; border-radius: 3px; background: #f0f0f0;">
+                                <strong>Card ${reservation.cardIndex}:</strong> Reserved by ${reservation.userIdShort}
+                            </div>
+                        `).join('')}
+                    `;
+                } else {
+                    document.getElementById('adminContent').innerHTML = `<p style="color: red;">Error: ${result.error}</p>`;
+                }
+            } catch (error) {
+                console.error('Error loading sessions:', error);
+                document.getElementById('adminContent').innerHTML = `<p style="color: red;">Error loading sessions</p>`;
+            }
+        }
+
+        async function loadPlayers() {
+            try {
+                const response = await fetch('/api/admin/players?sessionId=demo_session');
+                const result = await response.json();
+
+                if (result.success) {
+                    const adminContent = document.getElementById('adminContent');
+                    adminContent.innerHTML = `
+                        <h4>👥 Players in Session: ${result.sessionId.slice(-8)}</h4>
+                        <p><strong>Session State:</strong> ${result.sessionState}</p>
+                        <p><strong>Total Players:</strong> ${result.totalPlayers}</p>
+                        <p><strong>Game State:</strong> ${result.gameState}</p>
+                        <p><strong>Countdown:</strong> ${result.countdown}s</p>
+
+                        ${result.players.map(player => `
+                            <div style="border: 2px solid #007bff; padding: 15px; margin: 10px 0; border-radius: 10px; background: rgba(0, 123, 255, 0.1);">
+                                <h5>👤 Player ${player.userIdShort}</h5>
+                                <p><strong>Balance:</strong> ${player.balance} ETB</p>
+                                <p><strong>Cards Selected:</strong> ${player.cardIndices.length}</p>
+                                <p><strong>Joined:</strong> ${new Date(player.joinedAt).toLocaleTimeString()}</p>
+                                <p><strong>Status:</strong> ${player.isReady ? 'Ready' : 'Not Ready'}</p>
+                                ${player.cards.map(card => `
+                                    <div style="margin: 5px 0; padding: 5px; background: white; border-radius: 5px;">
+                                        <strong>Card ${card.index}:</strong>
+                                        ${card.card ? `[${card.card.B.join(', ')}] [${card.card.I.join(', ')}] [${card.card.N.join(', ')}] [${card.card.G.join(', ')}] [${card.card.O.join(', ')}]` : 'Not available'}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `).join('')}
+                    `;
+                } else {
+                    document.getElementById('adminContent').innerHTML = `<p style="color: red;">Error: ${result.error}</p>`;
+                }
+            } catch (error) {
+                console.error('Error loading players:', error);
+                document.getElementById('adminContent').innerHTML = `<p style="color: red;">Error loading players</p>`;
+            }
+        }
+
+        async function refreshCards() {
+            try {
+                const response = await fetch('/api/cards');
+                const result = await response.json();
+
+                if (result.success) {
+                    const adminContent = document.getElementById('adminContent');
+                    adminContent.innerHTML = `
+                        <h4>🎴 Card Pool Status</h4>
+                        <p><strong>Total Cards:</strong> ${result.totalCards}</p>
+                        <p><strong>Available:</strong> ${result.availableCount}</p>
+                        <p><strong>Reserved:</strong> ${result.reservedCount}</p>
+
+                        <h5>📋 Available Cards:</h5>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin: 10px 0;">
+                            ${result.availableCards.map(card => `
+                                <div style="border: 1px solid #28a745; padding: 10px; border-radius: 5px; background: rgba(40, 167, 69, 0.1);">
+                                    <strong>Card ${card.index}:</strong><br>
+                                    B: [${card.card.B.join(', ')}]<br>
+                                    I: [${card.card.I.join(', ')}]<br>
+                                    N: [${card.card.N.join(', ')}]<br>
+                                    G: [${card.card.G.join(', ')}]<br>
+                                    O: [${card.card.O.join(', ')}]
+                                </div>
+                            `).join('')}
+                        </div>
+
+                        <h5>🔒 Reserved Cards:</h5>
+                        ${result.reservedCards.map(card => `
+                            <div style="border: 1px solid #dc3545; padding: 5px; margin: 2px 0; border-radius: 3px; background: rgba(220, 53, 69, 0.1);">
+                                <strong>Card ${card.index}:</strong> Reserved by ${card.reservedBy.slice(-4)}
+                            </div>
+                        `).join('')}
+                    `;
+                } else {
+                    document.getElementById('adminContent').innerHTML = `<p style="color: red;">Error: ${result.error}</p>`;
+                }
+            } catch (error) {
+                console.error('Error refreshing cards:', error);
+                document.getElementById('adminContent').innerHTML = `<p style="color: red;">Error refreshing cards</p>`;
+            }
+        }
     </script>
 </body>
 </html>

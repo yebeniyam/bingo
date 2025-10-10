@@ -242,6 +242,10 @@ async function handleAPI(req, res, pathname, query) {
 
     if (pathname === '/api/cards' && method === 'GET') {
         await handleGetAvailableCards(req, res);
+    } else if (pathname === '/api/admin/players' && method === 'GET') {
+        await handleGetPlayers(req, res, query);
+    } else if (pathname === '/api/admin/sessions' && method === 'GET') {
+        await handleGetSessions(req, res);
     } else if (pathname === '/api/create-session' && method === 'POST') {
         await handleCreateSession(req, res);
     } else if (pathname === '/api/join-session' && method === 'POST') {
@@ -304,6 +308,108 @@ async function handleGetAvailableCards(req, res) {
     }
 }
 
+// Handle getting players (admin function)
+async function handleGetPlayers(req, res, query) {
+    try {
+        const sessionId = query.sessionId || 'demo_session';
+        const session = await getSession(sessionId);
+
+        if (!session) {
+            res.writeHead(404);
+            res.end(JSON.stringify({ error: 'Session not found' }));
+            return;
+        }
+
+        // Get card details for each player
+        const playersWithCards = session.players.map(player => {
+            const cardPool = global.availableCards.get('cardPool') || [];
+            const playerCards = player.cardIndices.map(index => ({
+                index: index,
+                card: cardPool[index] || null
+            }));
+
+            return {
+                id: player.id,
+                userId: player.userId,
+                userIdShort: player.userId.slice(-4),
+                cardIndices: player.cardIndices,
+                cards: playerCards,
+                cardCost: player.cardCost,
+                joinedAt: player.joinedAt,
+                balance: player.balance,
+                isReady: player.isReady,
+                hasWon: player.hasWon
+            };
+        });
+
+        res.writeHead(200);
+        res.end(JSON.stringify({
+            success: true,
+            sessionId: session.id,
+            sessionState: session.gameState,
+            players: playersWithCards,
+            totalPlayers: session.players.length,
+            gameState: session.gameState,
+            countdown: session.countdown,
+            drawnNumbers: session.drawnNumbers
+        }));
+
+    } catch (error) {
+        console.error('Error getting players:', error);
+        res.writeHead(500);
+        res.end(JSON.stringify({ error: 'Failed to get players' }));
+    }
+}
+
+// Handle getting all sessions (admin function)
+async function handleGetSessions(req, res) {
+    try {
+        const sessions = [];
+        const reservations = [];
+
+        // Get all sessions
+        for (const [sessionId, session] of global.sessions.entries()) {
+            sessions.push({
+                id: session.id,
+                createdAt: session.createdAt,
+                playerCount: session.players.length,
+                gameState: session.gameState,
+                countdown: session.countdown,
+                active: session.active,
+                drawnNumbers: session.drawnNumbers.length
+            });
+        }
+
+        // Get all card reservations
+        for (const [cardIndex, userId] of global.cardReservations.entries()) {
+            reservations.push({
+                cardIndex: cardIndex,
+                userId: userId,
+                userIdShort: userId.slice(-4)
+            });
+        }
+
+        res.writeHead(200);
+        res.end(JSON.stringify({
+            success: true,
+            sessions: sessions,
+            cardReservations: reservations,
+            totalSessions: sessions.length,
+            totalReservations: reservations.length,
+            serverInfo: {
+                redisAvailable: redisAvailable,
+                totalGameLoops: global.gameLoops.size,
+                totalConnections: Array.from(global.sseConnections.values()).reduce((sum, arr) => sum + arr.length, 0)
+            }
+        }));
+
+    } catch (error) {
+        console.error('Error getting sessions:', error);
+        res.writeHead(500);
+        res.end(JSON.stringify({ error: 'Failed to get sessions' }));
+    }
+}
+
 // Handle session creation
 async function handleCreateSession(req, res) {
     const sessionId = generateSessionId();
@@ -347,8 +453,13 @@ async function handleJoinSession(req, res) {
             }
 
             // Validate card indices and check availability
+            console.log(`🔍 Checking card availability for user ${userId.slice(-4)}:`, cardIndices);
+            console.log(`📋 Current reservations:`, Array.from(global.cardReservations.entries()));
+
             for (const cardIndex of cardIndices) {
                 if (global.cardReservations.has(cardIndex)) {
+                    const reservedBy = global.cardReservations.get(cardIndex);
+                    console.log(`❌ Card ${cardIndex} already reserved by ${reservedBy.slice(-4)}`);
                     res.writeHead(400);
                     res.end(JSON.stringify({
                         error: `Card ${cardIndex} is already taken by another player`
@@ -358,6 +469,7 @@ async function handleJoinSession(req, res) {
             }
 
             // Reserve cards for this player
+            console.log(`✅ Reserving cards ${cardIndices} for user ${userId.slice(-4)}`);
             cardIndices.forEach(cardIndex => {
                 global.cardReservations.set(cardIndex, userId);
             });
