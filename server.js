@@ -426,7 +426,7 @@ async function handleJoinSession(req, res) {
             // Start game loop if minimum players reached and not already started
             if (newGameState === 'countdown' && !global.gameLoops.has(sessionId)) {
                 console.log(`🎮 Starting countdown for session ${sessionId} with ${session.players.length} players`);
-                startGameLoop(sessionId);
+                setTimeout(() => startGameLoop(sessionId), 100); // Small delay to ensure session is saved
             } else if (newGameState === 'waiting') {
                 console.log(`⏳ Session ${sessionId} waiting for more players (${session.players.length}/${session.minPlayers})`);
             }
