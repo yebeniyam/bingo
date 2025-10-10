@@ -385,7 +385,7 @@ async function handleJoinSession(req, res) {
                 isNewSession = true;
                 console.log(`🆕 Created new session: ${sessionId}`);
             } else {
-                console.log(`📋 Found existing session: ${sessionId} with ${session.players.length} players`);
+                console.log(`📋 Found existing session: ${sessionId} with ${session.players.length} players, state: ${session.gameState}`);
             }
 
             // Check if player already exists
