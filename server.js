@@ -427,7 +427,9 @@ async function handleJoinSession(req, res) {
             if (newGameState === 'countdown' && !global.gameLoops.has(sessionId)) {
                 console.log(`🎮 Starting countdown for session ${sessionId} with ${session.players.length} players`);
                 console.log(`📊 Session state:`, { gameState: newGameState, players: session.players.length, minPlayers: session.minPlayers });
-                setTimeout(() => startGameLoop(sessionId), 100); // Small delay to ensure session is saved
+                console.log(`🔄 Game loops before:`, Array.from(global.gameLoops.keys()));
+                startGameLoop(sessionId);
+                console.log(`✅ Game loop started for session ${sessionId}`);
             } else if (newGameState === 'waiting') {
                 console.log(`⏳ Session ${sessionId} waiting for more players (${session.players.length}/${session.minPlayers})`);
             } else if (global.gameLoops.has(sessionId)) {
