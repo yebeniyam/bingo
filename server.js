@@ -383,6 +383,9 @@ async function handleJoinSession(req, res) {
                 };
                 global.sessions.set(sessionId, session);
                 isNewSession = true;
+                console.log(`🆕 Created new session: ${sessionId}`);
+            } else {
+                console.log(`📋 Found existing session: ${sessionId} with ${session.players.length} players`);
             }
 
             // Check if player already exists
@@ -424,6 +427,8 @@ async function handleJoinSession(req, res) {
             if (newGameState === 'countdown' && !global.gameLoops.has(sessionId)) {
                 console.log(`🎮 Starting countdown for session ${sessionId} with ${session.players.length} players`);
                 startGameLoop(sessionId);
+            } else if (newGameState === 'waiting') {
+                console.log(`⏳ Session ${sessionId} waiting for more players (${session.players.length}/${session.minPlayers})`);
             }
 
             res.writeHead(200);
@@ -466,6 +471,12 @@ async function handleDrawSSE(req, res, query) {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
+    // Track SSE connection
+    if (!global.sseConnections.has(sessionId)) {
+        global.sseConnections.set(sessionId, []);
+    }
+    global.sseConnections.get(sessionId).push(res);
+
     // Send initial session state
     sendSSE(res, 'session', {
         sessionId: session.id,
@@ -482,6 +493,14 @@ async function handleDrawSSE(req, res, query) {
             if (!currentSession || !currentSession.active) {
                 sendSSE(res, 'gameEnd', { reason: 'Session ended' });
                 clearInterval(interval);
+
+                // Remove from connections
+                const connections = global.sseConnections.get(sessionId) || [];
+                const index = connections.indexOf(res);
+                if (index > -1) {
+                    connections.splice(index, 1);
+                }
+
                 res.end();
                 return;
             }
@@ -519,12 +538,26 @@ async function handleDrawSSE(req, res, query) {
         } catch (error) {
             console.error('Error in draw interval:', error);
             clearInterval(interval);
+
+            // Remove from connections
+            const connections = global.sseConnections.get(sessionId) || [];
+            const index = connections.indexOf(res);
+            if (index > -1) {
+                connections.splice(index, 1);
+            }
         }
     }, 2000); // Send updates every 2 seconds for demo
 
     // Clean up on connection close
     req.on('close', () => {
         clearInterval(interval);
+
+        // Remove from connections
+        const connections = global.sseConnections.get(sessionId) || [];
+        const index = connections.indexOf(res);
+        if (index > -1) {
+            connections.splice(index, 1);
+        }
     });
 }
 
@@ -681,9 +714,19 @@ async function startGameLoop(sessionId) {
 
 // Send SSE event to all connected clients for a session
 async function sendSSEToAll(sessionId, eventType, data) {
-    // In a production environment, you would track all SSE connections
-    // For this demo, we'll just log the event
-    console.log(`📡 Broadcasting ${eventType} to session ${sessionId}:`, data);
+    // Get all SSE connections for this session
+    const sessionConnections = global.sseConnections.get(sessionId) || [];
+
+    console.log(`📡 Broadcasting ${eventType} to session ${sessionId} (${sessionConnections.length} connections):`, data);
+
+    // Send event to all connected clients
+    sessionConnections.forEach(res => {
+        try {
+            sendSSE(res, eventType, data);
+        } catch (error) {
+            console.error('Error sending SSE to client:', error);
+        }
+    });
 }
 
 // Send Server-Sent Event
