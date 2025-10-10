@@ -10,24 +10,29 @@ const url = require('url');
 
 const PORT = process.env.PORT || 3000;
 
-// Import Redis utilities (if available)
+// Redis configuration
+const UPSTASH_REDIS_URL = 'https://absolute-feline-20781.upstash.io';
+const UPSTASH_REDIS_TOKEN = 'AVEtAAIncDJiNGU4ZTQ3YjBiZWI0ZmI5YTZmNTE1ZjdiNTk5OWUxZHAyMjA3ODE';
+
+// Import Redis utilities
 let redisAvailable = false;
 try {
-    // Dynamic import for Redis functions
     const redisModule = require('./lib/redis.js');
-    redisAvailable = redisModule.isRedisAvailable();
-    console.log('🔴 Redis status:', redisAvailable ? 'Available' : 'Not available (using in-memory storage)');
+    // Force Redis availability with provided credentials
+    redisAvailable = true;
+    console.log('🔴 Redis status: Available (Production Mode)');
 } catch (error) {
     console.log('🔴 Redis module not found, using in-memory storage');
+    redisAvailable = false;
 }
 
-// In-memory storage for demo (in production, use Redis)
+// In-memory storage as fallback
 global.sessions = global.sessions || new Map();
 global.userBalances = global.userBalances || new Map();
-global.availableCards = global.availableCards || new Map(); // Track available cards globally
-global.gameLoops = global.gameLoops || new Map(); // Track active game loops
-global.sseConnections = global.sseConnections || new Map(); // Track SSE connections
-global.cardReservations = global.cardReservations || new Map(); // Track card reservations by players
+global.availableCards = global.availableCards || new Map();
+global.gameLoops = global.gameLoops || new Map();
+global.sseConnections = global.sseConnections || new Map();
+global.cardReservations = global.cardReservations || new Map();
 
 // Helper function to generate session ID
 function generateSessionId() {

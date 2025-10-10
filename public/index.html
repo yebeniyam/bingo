@@ -94,6 +94,19 @@
             background: rgba(0, 123, 255, 0.1);
         }
 
+        .card.reserved {
+            border-color: #dc3545;
+            background: rgba(220, 53, 69, 0.1);
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .card.available {
+            border-color: var(--tg-theme-secondary-bg-color, #e0e0e0);
+            background: var(--tg-theme-bg-color, #ffffff);
+            cursor: pointer;
+        }
+
         .card-header {
             text-align: center;
             font-weight: bold;
@@ -404,7 +417,46 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    currentCards = result.availableCards.map(card => card.card);
+                    // Show all cards but with different styling for reserved ones
+                    const allCards = [];
+                    const cardPool = [];
+
+                    // Initialize card pool if not exists
+                    if (!global.availableCards.has('cardPool')) {
+                        const cards = generateBingoCards(20);
+                        global.availableCards.set('cardPool', cards);
+                    }
+
+                    const pool = global.availableCards.get('cardPool');
+
+                    // Create all 20 cards with proper status
+                    for (let i = 0; i < 20; i++) {
+                        const isReserved = result.reservedCards.some(rc => rc.index === i);
+                        const isAvailable = result.availableCards.some(ac => ac.index === i);
+
+                        if (isAvailable) {
+                            allCards.push({
+                                index: i,
+                                card: pool[i],
+                                status: 'available'
+                            });
+                        } else if (isReserved) {
+                            allCards.push({
+                                index: i,
+                                card: pool[i],
+                                status: 'reserved',
+                                reservedBy: result.reservedCards.find(rc => rc.index === i)?.reservedBy
+                            });
+                        } else {
+                            allCards.push({
+                                index: i,
+                                card: pool[i],
+                                status: 'available'
+                            });
+                        }
+                    }
+
+                    currentCards = allCards;
                     displayCards();
                 } else {
                     console.error('Failed to load cards:', result.error);
@@ -474,20 +526,35 @@
             const cardGrid = document.getElementById('cardGrid');
             cardGrid.innerHTML = '';
 
-            currentCards.forEach((card, index) => {
-                const cardElement = createCardElement(card, index);
+            currentCards.forEach((cardData, index) => {
+                const cardElement = createCardElement(cardData, index);
                 cardGrid.appendChild(cardElement);
             });
         }
 
-        function createCardElement(card, index) {
+        function createCardElement(cardData, index) {
             const cardDiv = document.createElement('div');
-            cardDiv.className = 'card';
-            cardDiv.onclick = () => toggleCardSelection(index);
+            const card = cardData.card;
+            const status = cardData.status;
+
+            // Set card class based on status
+            cardDiv.className = `card ${status}`;
+
+            // Only allow selection for available cards
+            if (status === 'available') {
+                cardDiv.onclick = () => toggleCardSelection(index);
+            }
 
             const header = document.createElement('div');
             header.className = 'card-header';
-            header.textContent = `Card ${index + 1}`;
+
+            if (status === 'reserved') {
+                header.textContent = `Card ${index + 1} (Reserved by ${cardData.reservedBy?.slice(-4) || 'Unknown'})`;
+                header.style.color = '#dc3545';
+            } else {
+                header.textContent = `Card ${index + 1}`;
+            }
+
             cardDiv.appendChild(header);
 
             // Create B I N G O header
