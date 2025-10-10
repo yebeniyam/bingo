@@ -645,30 +645,48 @@
                 eventSource.close();
             }
 
+            console.log(`🎧 Connecting to SSE: /api/draw?sessionId=${sessionId}`);
             eventSource = new EventSource(`/api/draw?sessionId=${sessionId}`);
 
-            eventSource.onmessage = function(event) {
+            eventSource.addEventListener('session', function(event) {
                 const data = JSON.parse(event.data);
+                console.log('📋 Session event:', data);
+                gameState = data.gameState;
+                updateCountdown(data.countdown);
+            });
 
+            eventSource.addEventListener('countdown', function(event) {
+                const data = JSON.parse(event.data);
+                console.log('⏰ Countdown event:', data);
+                updateCountdown(data.countdown);
+                gameState = data.gameState;
+            });
+
+            eventSource.addEventListener('gameStarted', function(event) {
+                const data = JSON.parse(event.data);
+                console.log('🚀 Game started event:', data);
+                gameState = data.gameState;
+                updateCountdown(0);
+            });
+
+            eventSource.addEventListener('draw', function(event) {
+                const data = JSON.parse(event.data);
+                console.log('🎲 Draw event:', data);
                 if (data.draw) {
                     handleNewDraw(data.draw);
                 }
+            });
 
+            eventSource.addEventListener('gameEnd', function(event) {
+                const data = JSON.parse(event.data);
+                console.log('🏁 Game end event:', data);
                 if (data.winners && data.winners.length > 0) {
-                    handleGameEnd(data.winners, data.prize);
+                    handleGameEnd(data.winners, data.prizePerWinner);
                 }
-
-                if (data.countdown !== undefined) {
-                    updateCountdown(data.countdown);
-                }
-
-                if (data.gameState) {
-                    gameState = data.gameState;
-                }
-            };
+            });
 
             eventSource.onerror = function(error) {
-                console.error('EventSource error:', error);
+                console.error('❌ EventSource error:', error);
             };
         }
 
