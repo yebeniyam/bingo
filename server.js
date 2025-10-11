@@ -543,12 +543,19 @@ async function handleJoinSession(req, res) {
 
             session.players.push(player);
 
-            // Update session (await the async function)
+            // Update session (await the async function) - ensure countdown is properly initialized when transitioning to countdown state
             const newGameState = session.players.length >= session.minPlayers ? 'countdown' : 'waiting';
-            await updateSession(sessionId, {
+            const sessionUpdates = {
                 players: session.players,
                 gameState: newGameState
-            });
+            };
+
+            // Initialize countdown to 60 seconds when entering countdown state
+            if (newGameState === 'countdown') {
+                sessionUpdates.countdown = 60;
+            }
+
+            await updateSession(sessionId, sessionUpdates);
 
             // Start game loop if minimum players reached and not already started
             if (newGameState === 'countdown' && !global.gameLoops.has(sessionId)) {
@@ -686,7 +693,7 @@ async function handleDrawSSE(req, res, query) {
                 connections.splice(index, 1);
             }
         }
-    }, 2000); // Send updates every 2 seconds for demo
+    }, 1000); // Send updates every 1 second to match countdown timing
 
     // Clean up on connection close
     req.on('close', () => {
@@ -814,7 +821,15 @@ async function startGameLoop(sessionId) {
             }
 
             if (session.gameState === 'countdown') {
+                // Ensure countdown is properly initialized
+                if (session.countdown === undefined || session.countdown === null) {
+                    console.log(`🔧 Initializing countdown for session ${sessionId}`);
+                    await updateSession(sessionId, { countdown: 60 });
+                    return; // Skip this iteration and let next one handle the countdown
+                }
+
                 const newCountdown = session.countdown - 1;
+                console.log(`⏰ Countdown: ${session.countdown} -> ${newCountdown} for session ${sessionId}`);
 
                 if (newCountdown <= 0) {
                     // Start the game
