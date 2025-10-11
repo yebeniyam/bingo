@@ -393,6 +393,22 @@
         let eventSource = null;
         let gameState = 'waiting'; // waiting, countdown, playing, finished
 
+        // Simple storage for browser environment
+        if (typeof window !== 'undefined') {
+            window.bingoStorage = window.bingoStorage || {
+                availableCards: new Map(),
+                sessions: new Map(),
+                userBalances: new Map(),
+                cardReservations: new Map()
+            };
+        }
+
+        // Initialize card pool for frontend
+        let cardPool = [];
+        for (let i = 0; i < 20; i++) {
+            cardPool.push(generateBingoCard());
+        }
+
         // Initialize Telegram WebApp
         tg.ready();
         tg.expand();
@@ -419,15 +435,6 @@
                 if (result.success) {
                     // Show all cards but with different styling for reserved ones
                     const allCards = [];
-                    const cardPool = [];
-
-                    // Initialize card pool if not exists
-                    if (!global.availableCards.has('cardPool')) {
-                        const cards = generateBingoCards(20);
-                        global.availableCards.set('cardPool', cards);
-                    }
-
-                    const pool = global.availableCards.get('cardPool');
 
                     // Create all 20 cards with proper status
                     for (let i = 0; i < 20; i++) {
@@ -437,20 +444,20 @@
                         if (isAvailable) {
                             allCards.push({
                                 index: i,
-                                card: pool[i],
+                                card: result.availableCards.find(ac => ac.index === i).card,
                                 status: 'available'
                             });
                         } else if (isReserved) {
                             allCards.push({
                                 index: i,
-                                card: pool[i],
+                                card: cardPool[i], // Use local cardPool for display
                                 status: 'reserved',
                                 reservedBy: result.reservedCards.find(rc => rc.index === i)?.reservedBy
                             });
                         } else {
                             allCards.push({
                                 index: i,
-                                card: pool[i],
+                                card: cardPool[i], // Use local cardPool for display
                                 status: 'available'
                             });
                         }
