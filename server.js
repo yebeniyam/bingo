@@ -102,7 +102,13 @@ async function getSession(sessionId) {
     }
 
     // Fallback to in-memory storage
-    return global.sessions.get(sessionId) || null;
+    const session = global.sessions.get(sessionId) || null;
+    console.log(`🔍 getSession(${sessionId.slice(-8)}): ${session ? 'found' : 'not found'}`, session ? {
+        gameState: session.gameState,
+        countdown: session.countdown,
+        players: session.players.length
+    } : null);
+    return session;
 }
 
 // Update session data (Redis in production, in-memory for development)
@@ -113,6 +119,11 @@ async function updateSession(sessionId, updates) {
     }
 
     const updatedSession = { ...session, ...updates };
+    console.log(`📝 updateSession(${sessionId.slice(-8)}):`, {
+        oldState: { gameState: session.gameState, countdown: session.countdown },
+        updates: updates,
+        newState: { gameState: updatedSession.gameState, countdown: updatedSession.countdown }
+    });
 
     if (redisAvailable) {
         try {
@@ -500,16 +511,22 @@ async function handleJoinSession(req, res) {
                     players: [],
                     drawnNumbers: [],
                     gameState: 'waiting',
-                    countdown: 60,
+                    countdown: 60, // Initialize countdown here as well
                     maxPlayers: 50,
                     minPlayers: 2,
                     active: true
                 };
                 global.sessions.set(sessionId, session);
-                isNewSession = true;
-                console.log(`🆕 Created new session: ${sessionId}`);
+                console.log(`💾 Session stored in memory with ID: ${sessionId}`);
+                console.log(`🔍 Session data:`, {
+                    id: session.id,
+                    gameState: session.gameState,
+                    countdown: session.countdown,
+                    players: session.players.length
+                });
             } else {
                 console.log(`📋 Found existing session: ${sessionId} with ${session.players.length} players, state: ${session.gameState}`);
+                console.log(`⏰ Current countdown value: ${session.countdown}`);
             }
 
             console.log(`👤 Player ${userId.slice(-4)} joining session ${sessionId}`);
@@ -812,6 +829,7 @@ async function startGameLoop(sessionId) {
     // Store the game loop reference
     const gameInterval = setInterval(async () => {
         try {
+            console.log(`🔄 Game loop tick for session: ${sessionId}`);
             const session = await getSession(sessionId);
             if (!session || !session.active) {
                 console.log(`🛑 Stopping game loop for session: ${sessionId}`);
@@ -819,6 +837,8 @@ async function startGameLoop(sessionId) {
                 global.gameLoops.delete(sessionId);
                 return;
             }
+
+            console.log(`🎮 Game loop - Session state: ${session.gameState}, countdown: ${session.countdown}`);
 
             if (session.gameState === 'countdown') {
                 // Ensure countdown is properly initialized
