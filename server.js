@@ -556,6 +556,14 @@ async function handleJoinSession(req, res) {
                 console.log(`⚠️ Game loop already exists for session ${sessionId}`);
             }
 
+            // Debug: Log current session state
+            console.log(`🔍 Current session state after join:`, {
+                sessionId: sessionId,
+                players: session.players.length,
+                gameState: newGameState,
+                gameLoopExists: global.gameLoops.has(sessionId)
+            });
+
             res.writeHead(200);
             res.end(JSON.stringify({
                 success: true,
