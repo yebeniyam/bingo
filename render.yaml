@@ -8,7 +8,16 @@ services:
       - key: NODE_ENV
         value: production
       - key: UPSTASH_REDIS_REST_URL
-        value: https://absolute-feline-20781.upstash.io
+        fromService:
+          type: redis
+          name: bingo-redis
+          property: connectionString
       - key: UPSTASH_REDIS_REST_TOKEN
-        value: AVEtAAIncDJiNGU4ZTQ3YjBiZWI0ZmI5YTZmNTE1ZjdiNTk5OWUxZHAyMjA3ODE
-    autoDeploy: false
+        fromService:
+          type: redis
+          name: bingo-redis
+          property: password
+
+  - type: redis
+    name: bingo-redis
+    ipAllowList: [] # Only accessible by other services in this project

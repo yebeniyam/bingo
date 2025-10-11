@@ -10,19 +10,23 @@ const url = require('url');
 
 const PORT = process.env.PORT || 3000;
 
-// Redis configuration
-const UPSTASH_REDIS_URL = 'https://absolute-feline-20781.upstash.io';
-const UPSTASH_REDIS_TOKEN = 'AVEtAAIncDJiNGU4ZTQ3YjBiZWI0ZmI5YTZmNTE1ZjdiNTk5OWUxZHAyMjA3ODE';
+// Redis configuration - Use environment variables from Render
+const UPSTASH_REDIS_URL = process.env.UPSTASH_REDIS_REST_URL;
+const UPSTASH_REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 
 // Import Redis utilities
 let redisAvailable = false;
-try {
-    const redisModule = require('./lib/redis.js');
-    // Force Redis availability with provided credentials
-    redisAvailable = true;
-    console.log('🔴 Redis status: Available (Production Mode)');
-} catch (error) {
-    console.log('🔴 Redis module not found, using in-memory storage');
+if (UPSTASH_REDIS_URL && UPSTASH_REDIS_TOKEN) {
+    try {
+        const redisModule = require('./lib/redis.js');
+        redisAvailable = true;
+        console.log('🔴 Redis status: Available (Production Mode)');
+    } catch (error) {
+        console.log('🔴 Redis module not found, using in-memory storage');
+        redisAvailable = false;
+    }
+} else {
+    console.log('🔴 Redis credentials not found, using in-memory storage');
     redisAvailable = false;
 }
 
