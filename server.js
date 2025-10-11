@@ -8,7 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const url = require('url');
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 // Redis configuration - Use environment variables from Render
 const UPSTASH_REDIS_URL = process.env.UPSTASH_REDIS_REST_URL;
@@ -498,15 +498,14 @@ async function handleJoinSession(req, res) {
             });
 
             // Create session if one doesn't exist
-            let sessionId = 'demo_session'; // For demo purposes
+            let sessionId = 'demo_session'; // For demo purposes - use fixed session ID
             let session = await getSession(sessionId);
             let isNewSession = false;
 
             if (!session) {
-                // Create new session directly
-                sessionId = generateSessionId();
+                // Create new session with the fixed demo_session ID
                 session = {
-                    id: sessionId,
+                    id: sessionId, // Use the fixed session ID
                     createdAt: new Date().toISOString(),
                     players: [],
                     drawnNumbers: [],
@@ -517,15 +516,10 @@ async function handleJoinSession(req, res) {
                     active: true
                 };
                 global.sessions.set(sessionId, session);
-                console.log(`💾 Session stored in memory with ID: ${sessionId}`);
-                console.log(`🔍 Session data:`, {
-                    id: session.id,
-                    gameState: session.gameState,
-                    countdown: session.countdown,
-                    players: session.players.length
-                });
+                isNewSession = true;
+                console.log(`🆕 Created new demo session: ${sessionId}`);
             } else {
-                console.log(`📋 Found existing session: ${sessionId} with ${session.players.length} players, state: ${session.gameState}`);
+                console.log(`📋 Found existing demo session: ${sessionId} with ${session.players.length} players, state: ${session.gameState}`);
                 console.log(`⏰ Current countdown value: ${session.countdown}`);
             }
 
