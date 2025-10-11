@@ -249,25 +249,28 @@ async function handleAPI(req, res, pathname, query) {
     // Set JSON content type for API responses
     res.setHeader('Content-Type', 'application/json');
 
+    console.log(`🔍 API Request: ${method} ${pathname}`);
+
     if (pathname === '/api/cards' && method === 'GET') {
         await handleGetAvailableCards(req, res);
-    } else if (pathname === '/api/admin/players' && method === 'GET') {
+    } else if (pathname.startsWith('/api/admin/players') && method === 'GET') {
         await handleGetPlayers(req, res, query);
-    } else if (pathname === '/api/admin/sessions' && method === 'GET') {
+    } else if (pathname.startsWith('/api/admin/sessions') && method === 'GET') {
         await handleGetSessions(req, res);
     } else if (pathname === '/api/create-session' && method === 'POST') {
         await handleCreateSession(req, res);
     } else if (pathname === '/api/join-session' && method === 'POST') {
         await handleJoinSession(req, res);
-    } else if (pathname === '/api/draw' && method === 'GET') {
+    } else if (pathname.startsWith('/api/draw') && method === 'GET') {
         await handleDrawSSE(req, res, query);
     } else if (pathname === '/api/wallet/deposit' && method === 'POST') {
         await handleDeposit(req, res);
     } else if (pathname === '/api/wallet/withdraw' && method === 'POST') {
         await handleWithdraw(req, res);
     } else {
+        console.log(`❌ API endpoint not found: ${method} ${pathname}`);
         res.writeHead(404);
-        res.end(JSON.stringify({ error: 'API endpoint not found' }));
+        res.end(JSON.stringify({ error: 'API endpoint not found', requestedPath: pathname }));
     }
 }
 
